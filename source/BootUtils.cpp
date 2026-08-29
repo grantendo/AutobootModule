@@ -4,6 +4,8 @@
 #include "logger.h"
 #include <codecvt>
 #include <coreinit/filesystem_fsa.h>
+#include <coreinit/thread.h>
+#include <coreinit/time.h>
 #include <cstdio>
 #include <filesystem>
 #include <locale>
@@ -99,6 +101,13 @@ static void launchvWiiTitle(uint64_t titleId) {
     // see https://github.com/wiiu-env/AutobootModule/issues/67
     CMPTAcctSetDrcCtrlEnabled(0);
     CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+
+    // On autoboot this code runs much earlier than a manual selection from
+    // the boot menu, and launching before the compat subsystem is ready
+    // results in a black screen. Wait for it, but launch anyway after 5s.
+    for (int i = 0; i < 50 && CMPTCheckScreenState() < 0; i++) {
+        OSSleepTicks(OSMillisecondsToTicks(100));
+    }
 
     uint32_t dataSize = 0;
     CMPTGetDataSize(&dataSize);
