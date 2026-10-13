@@ -4,6 +4,7 @@
 #include "logger.h"
 #include <codecvt>
 #include <coreinit/filesystem_fsa.h>
+#include <cstdio>
 #include <filesystem>
 #include <locale>
 #include <malloc.h>
@@ -13,7 +14,6 @@
 #include <nn/cmpt/cmpt.h>
 #include <padscore/kpad.h>
 #include <sndcore2/core.h>
-#include <cstdio>
 #include <string>
 #include <sysapp/launch.h>
 #include <sysapp/title.h>

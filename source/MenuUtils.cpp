@@ -8,11 +8,11 @@
 #include "main.h"
 #include "utils.h"
 #include "version.h"
+#include <cctype>
 #include <coreinit/debug.h>
 #include <coreinit/filesystem_fsa.h>
 #include <coreinit/screen.h>
 #include <coreinit/thread.h>
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -138,7 +138,9 @@ void writeAutobootOption(std::string &configPath, int32_t autobootOption, const 
         if (autobootOption >= BOOT_OPTION_CUSTOM_BASE) {
             uint32_t index = autobootOption - BOOT_OPTION_CUSTOM_BASE;
             if (index < customOptions.size()) {
-                fprintf(f, CUSTOM_AUTOBOOT_PREFIX "%016llx", customOptions[index].titleId);
+                char buf[sizeof(CUSTOM_AUTOBOOT_PREFIX) + 16];
+                snprintf(buf, sizeof(buf), CUSTOM_AUTOBOOT_PREFIX "%016llx", customOptions[index].titleId);
+                fputs(buf, f);
             } else {
                 fputs("none", f);
             }

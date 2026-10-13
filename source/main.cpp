@@ -85,8 +85,8 @@ int32_t main(int32_t argc, char **argv) {
         DEBUG_FUNCTION_LINE_ERR("Failed to create FSA Client");
     }
 
-    bool showvHBL          = getVWiiHBLTitleId() != 0;
-    bool showHBL           = false;
+    bool showvHBL               = getVWiiHBLTitleId() != 0;
+    bool showHBL                = false;
     std::string configPath      = "fs:/vol/external01/wiiu/autoboot.cfg";
     std::string bootOptionsPath = "fs:/vol/external01/wiiu/bootOptions.cfg";
     if (argc >= 1) {
@@ -133,7 +133,7 @@ int32_t main(int32_t argc, char **argv) {
         // is reinstalled) instead of being preselected or overwritten by the menu.
         int32_t menuInput = (bootSelection >= BOOT_OPTION_CUSTOM_BASE && menu.count(bootSelection) == 0) ? -1 : bootSelection;
         bootSelection     = handleMenuScreen(configPath, menuInput, menu, customOptions);
-        hadMenu       = true;
+        hadMenu           = true;
     }
 
     if (bootSelection >= 0) {
