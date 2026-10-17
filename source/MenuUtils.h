@@ -6,6 +6,7 @@
 #include <memory>
 #include <nn/act.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 #define UPDATE_SKIP_PATH         "fs:/vol/external01/wiiu/environments/skipUpdateWarn"
@@ -33,6 +34,9 @@ enum {
 // The menu has no scrolling; with the built-in options this still fits on screen.
 #define MAX_CUSTOM_BOOT_OPTIONS 4
 
+// Boot menu entries (option id, name) in the order they are shown.
+using BootMenu = std::vector<std::pair<uint32_t, std::string>>;
+
 struct CustomBootOption {
     std::string name;
     uint64_t titleId;
@@ -44,7 +48,7 @@ int32_t readAutobootOption(std::string &configPath, const std::vector<CustomBoot
 
 void writeAutobootOption(std::string &configPath, int32_t autobootOption, const std::vector<CustomBootOption> &customOptions);
 
-int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const std::map<uint32_t, std::string> &menu,
+int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const BootMenu &menu,
                          const std::vector<CustomBootOption> &customOptions);
 
 nn::act::SlotNo handleAccountSelectScreen(const std::vector<std::shared_ptr<AccountInfo>> &data);

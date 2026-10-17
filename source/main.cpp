@@ -103,35 +103,44 @@ int32_t main(int32_t argc, char **argv) {
     auto customOptions    = readCustomBootOptions(bootOptionsPath);
     int32_t bootSelection = readAutobootOption(configPath, customOptions);
 
-    std::map<uint32_t, std::string> menu;
-    menu[BOOT_OPTION_WII_U_MENU] = "Wii U Menu";
-    if (showHBL) {
-        menu[BOOT_OPTION_HOMEBREW_LAUNCHER] = "Homebrew Launcher";
-    }
-    menu[BOOT_OPTION_VWII_SYSTEM_MENU] = "vWii System Menu";
-    if (showvHBL) {
-        menu[BOOT_OPTION_VWII_HOMEBREW_CHANNEL] = "vWii Homebrew Channel";
-    }
+    // Custom entries first, then the built-in ones.
+    BootMenu menu;
     for (uint32_t i = 0; i < customOptions.size(); i++) {
         // Only offer titles that are installed, so a stale entry can never be launched.
         if (titleExists(customOptions[i].titleId)) {
-            menu[BOOT_OPTION_CUSTOM_BASE + i] = customOptions[i].name;
+            menu.emplace_back(BOOT_OPTION_CUSTOM_BASE + i, customOptions[i].name);
         } else {
             DEBUG_FUNCTION_LINE_WARN("bootOptions.cfg: %016llx (%s) is not installed", customOptions[i].titleId, customOptions[i].name.c_str());
         }
     }
+    menu.emplace_back(BOOT_OPTION_WII_U_MENU, "Wii U Menu");
+    if (showHBL) {
+        menu.emplace_back(BOOT_OPTION_HOMEBREW_LAUNCHER, "Homebrew Launcher");
+    }
+    if (showvHBL) {
+        menu.emplace_back(BOOT_OPTION_VWII_HOMEBREW_CHANNEL, "vWii Homebrew Channel");
+    }
+    menu.emplace_back(BOOT_OPTION_VWII_SYSTEM_MENU, "vWii System Menu");
+    auto inMenu = [&menu](int32_t id) {
+        for (auto &item : menu) {
+            if ((int32_t) item.first == id) {
+                return true;
+            }
+        }
+        return false;
+    };
 
     if ((bootSelection == -1) ||
         (bootSelection == BOOT_OPTION_HOMEBREW_LAUNCHER && !showHBL) ||
         (bootSelection == BOOT_OPTION_VWII_HOMEBREW_CHANNEL && !showvHBL) ||
-        (bootSelection >= BOOT_OPTION_CUSTOM_BASE && menu.count(bootSelection) == 0) ||
+        (bootSelection >= BOOT_OPTION_CUSTOM_BASE && !inMenu(bootSelection)) ||
         (buttons.hold & VPAD_BUTTON_PLUS)) {
         if (!AXIsInit()) {
             AXInit();
         }
         // A saved custom entry whose title is gone stays saved (it comes back once the title
         // is reinstalled) instead of being preselected or overwritten by the menu.
-        int32_t menuInput = (bootSelection >= BOOT_OPTION_CUSTOM_BASE && menu.count(bootSelection) == 0) ? -1 : bootSelection;
+        int32_t menuInput = (bootSelection >= BOOT_OPTION_CUSTOM_BASE && !inMenu(bootSelection)) ? -1 : bootSelection;
         bootSelection     = handleMenuScreen(configPath, menuInput, menu, customOptions);
         hadMenu           = true;
     }
@@ -159,7 +168,7 @@ int32_t main(int32_t argc, char **argv) {
                 bootHomebrewChannel();
                 break;
             default:
-                if (bootSelection >= BOOT_OPTION_CUSTOM_BASE && menu.count(bootSelection) != 0) {
+                if (bootSelection >= BOOT_OPTION_CUSTOM_BASE && inMenu(bootSelection)) {
                     bootCustomTitle(customOptions[bootSelection - BOOT_OPTION_CUSTOM_BASE].titleId);
                     break;
                 }

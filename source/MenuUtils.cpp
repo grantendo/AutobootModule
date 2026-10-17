@@ -154,7 +154,7 @@ void writeAutobootOption(std::string &configPath, int32_t autobootOption, const 
     }
 }
 
-void drawMenuScreen(const std::map<uint32_t, std::string> &menu, uint32_t selectedIndex, uint32_t autobootIndex, bool updatesBlocked) {
+void drawMenuScreen(const BootMenu &menu, uint32_t selectedIndex, uint32_t autobootIndex, bool updatesBlocked) {
     DrawUtils::beginDraw();
     DrawUtils::clear(COLOR_BACKGROUND);
 
@@ -203,7 +203,7 @@ void drawMenuScreen(const std::map<uint32_t, std::string> &menu, uint32_t select
     DrawUtils::endDraw();
 }
 
-int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const std::map<uint32_t, std::string> &menu,
+int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const BootMenu &menu,
                          const std::vector<CustomBootOption> &customOptions) {
     auto screenBuffer = DrawUtils::InitOSScreen();
     if (!screenBuffer) {
@@ -218,27 +218,20 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
         OSFatal("AutobootModule: Failed to init font");
     }
 
-    int32_t selectedIndex = autobootOptionInput > 0 ? autobootOptionInput : 0;
-    int autobootIndex     = autobootOptionInput;
-
-    // "Convert" id to index
-    int32_t offset = 0;
-    for (auto &item : menu) {
-        if ((uint32_t) selectedIndex == item.first) {
-            selectedIndex = offset;
-            break;
-        }
-        offset++;
-    }
-    if (autobootIndex > 0) {
-        offset = 0;
-        for (auto &item : menu) {
-            if ((uint32_t) autobootIndex == item.first) {
-                autobootIndex = offset;
-                break;
+    // Convert option ids to positions in the menu (-1 if not shown). With no
+    // autoboot option, the cursor starts on the Wii U Menu.
+    auto indexOf = [&menu](int32_t id) {
+        for (uint32_t i = 0; i < menu.size(); i++) {
+            if ((int32_t) menu[i].first == id) {
+                return (int32_t) i;
             }
-            offset++;
         }
+        return -1;
+    };
+    int autobootIndex     = autobootOptionInput >= 0 ? indexOf(autobootOptionInput) : -1;
+    int32_t selectedIndex = autobootIndex >= 0 ? autobootIndex : indexOf(BOOT_OPTION_WII_U_MENU);
+    if (selectedIndex < 0) {
+        selectedIndex = 0;
     }
 
     {
