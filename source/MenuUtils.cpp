@@ -218,8 +218,8 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
         OSFatal("AutobootModule: Failed to init font");
     }
 
-    // Convert option ids to positions in the menu (-1 if not shown). With no
-    // autoboot option, the cursor starts on the Wii U Menu.
+    // Convert option ids to positions in the menu (-1 if not shown). The
+    // cursor always starts on the top entry.
     auto indexOf = [&menu](int32_t id) {
         for (uint32_t i = 0; i < menu.size(); i++) {
             if ((int32_t) menu[i].first == id) {
@@ -229,10 +229,7 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
         return -1;
     };
     int autobootIndex     = autobootOptionInput >= 0 ? indexOf(autobootOptionInput) : -1;
-    int32_t selectedIndex = autobootIndex >= 0 ? autobootIndex : indexOf(BOOT_OPTION_WII_U_MENU);
-    if (selectedIndex < 0) {
-        selectedIndex = 0;
-    }
+    int32_t selectedIndex = 0;
 
     {
         PairMenu pairMenu;
