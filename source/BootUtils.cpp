@@ -3,6 +3,7 @@
 #include "MenuUtils.h"
 #include "logger.h"
 #include <codecvt>
+#include <coreinit/dynload.h>
 #include <coreinit/filesystem_fsa.h>
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
@@ -92,6 +93,34 @@ void handleAccountSelection() {
 // calls this before launching vWii titles to signal GamePad support.
 extern "C" int32_t CMPTAcctSetDrcCtrlEnabled(int32_t enabled);
 
+// With the GamePad off, nn_cmpt refuses vWii launches (-512): its switch of the
+// TV to Wii mode (AVMSetDCWiiCompat) fails, because avm.rpl also reprograms the
+// GamePad's display pipe while flag 0x100 of its state is set, and dc.rpl
+// rejects that pipe's mode 0 with no GamePad (DCGetBufferRequirement = -2).
+// Clear 0x100 (and 0x200, which sets 0x100 again) so the switch leaves the
+// GamePad pipe alone; output is TV-only anyway. The state's address is read
+// from the lis/addi pair at the start of AVMSetDCWiiCompat and only used when
+// those instructions match.
+static void keepDrcPipeOutOfWiiMode() {
+    OSDynLoad_Module avm = nullptr;
+    void *dcWiiCompat    = nullptr;
+    if (OSDynLoad_Acquire("avm.rpl", &avm) != OS_DYNLOAD_OK ||
+        OSDynLoad_FindExport(avm, OS_DYNLOAD_EXPORT_FUNC, "AVMSetDCWiiCompat", &dcWiiCompat) != OS_DYNLOAD_OK) {
+        DEBUG_FUNCTION_LINE_ERR("AVMSetDCWiiCompat not found");
+        return;
+    }
+    const uint32_t *code = (const uint32_t *) dcWiiCompat;
+    const uint32_t lis = code[10], addi = code[12];
+    const uint32_t reg = (lis >> 21) & 0x1F;
+    if ((lis >> 26) != 15 || ((lis >> 16) & 0x1F) != 0 || (addi >> 26) != 14 || ((addi >> 21) & 0x1F) != reg || ((addi >> 16) & 0x1F) != reg) {
+        DEBUG_FUNCTION_LINE_ERR("Unexpected AVMSetDCWiiCompat code %08x %08x", lis, addi);
+        return;
+    }
+    const uint32_t state = ((lis & 0xFFFF) << 16) + (int32_t) (int16_t) (addi & 0xFFFF);
+    auto *flags          = (volatile uint32_t *) (state + 0x134);
+    *flags &= ~0x300u;
+}
+
 static void launchvWiiTitle(uint64_t titleId) {
     // we need to init kpad for cmpt
     KPADInit();
@@ -111,6 +140,8 @@ static void launchvWiiTitle(uint64_t titleId) {
 
     uint32_t dataSize = 0;
     CMPTGetDataSize(&dataSize);
+
+    keepDrcPipeOutOfWiiMode();
 
     void *dataBuffer = memalign(0x40, dataSize);
 
