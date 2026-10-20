@@ -20,6 +20,7 @@
 #include <sysapp/launch.h>
 #include <sysapp/title.h>
 #include <vector>
+#include <vpad/input.h>
 
 void handleAccountSelection();
 
@@ -111,27 +112,59 @@ static void setDrcModeForWiiMode() {
     DEBUG_FUNCTION_LINE("AVMSetDRCBufferAttr(2, 1, 896) = %d", result);
 }
 
+// Whether a GamePad is connected: VPADRead reports VPAD_READ_INVALID_CONTROLLER while none is.
+// Asked for up to half a second, as a GamePad switched on with the console may still be
+// connecting when autoboot gets here.
+static bool isGamePadConnected() {
+    for (int i = 0; i < 10; i++) {
+        VPADStatus status{};
+        VPADReadError error = VPAD_READ_UNINITIALIZED;
+        VPADRead(VPAD_CHAN_0, &status, 1, &error);
+        if (error == VPAD_READ_SUCCESS || error == VPAD_READ_NO_SAMPLES) {
+            return true;
+        }
+        OSSleepTicks(OSMillisecondsToTicks(50));
+    }
+    return false;
+}
+
 static void launchvWiiTitle(uint64_t titleId) {
     // we need to init kpad for cmpt
     KPADInit();
 
-    // Disable the GamePad and force TV-only output so autoboot works with
-    // the GamePad powered off,
-    // see https://github.com/wiiu-env/AutobootModule/issues/67
-    CMPTAcctSetDrcCtrlEnabled(0);
-    CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+    // With a GamePad connected, launch as before: the vWii can show on both screens. Without
+    // one, the launch hangs on a black screen or is refused, see
+    // https://github.com/wiiu-env/AutobootModule/issues/67, so launch for the TV alone.
+    const bool gamePadConnected = isGamePadConnected();
+    if (gamePadConnected) {
+        // Try to find a screen type that works
+        CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_BOTH);
+        if (CMPTCheckScreenState() < 0) {
+            CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_DRC);
+            if (CMPTCheckScreenState() < 0) {
+                CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+            }
+        }
+    } else {
+        DEBUG_FUNCTION_LINE("No GamePad connected: launching the vWii for the TV only");
+        // GamePad control off and the TV as the only screen
+        CMPTAcctSetDrcCtrlEnabled(0);
+        CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
 
-    // On autoboot this code runs much earlier than a manual selection from
-    // the boot menu, and launching before the compat subsystem is ready
-    // results in a black screen. Wait for it, but launch anyway after 5s.
-    for (int i = 0; i < 50 && CMPTCheckScreenState() < 0; i++) {
-        OSSleepTicks(OSMillisecondsToTicks(100));
+        // On autoboot this code runs much earlier than a manual selection from
+        // the boot menu, and launching before the compat subsystem is ready
+        // results in a black screen. Wait for it, but launch anyway after 5s.
+        for (int i = 0; i < 50 && CMPTCheckScreenState() < 0; i++) {
+            OSSleepTicks(OSMillisecondsToTicks(100));
+        }
     }
 
     uint32_t dataSize = 0;
     CMPTGetDataSize(&dataSize);
 
-    setDrcModeForWiiMode();
+    if (!gamePadConnected) {
+        setDrcModeForWiiMode();
+    }
 
     void *dataBuffer = memalign(0x40, dataSize);
 
