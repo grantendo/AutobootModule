@@ -3,6 +3,7 @@
 #include "MenuUtils.h"
 #include "logger.h"
 #include <codecvt>
+#include <coreinit/dynload.h>
 #include <coreinit/filesystem_fsa.h>
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
@@ -91,6 +92,25 @@ void handleAccountSelection() {
 // calls this before launching vWii titles to signal GamePad support.
 extern "C" int32_t CMPTAcctSetDrcCtrlEnabled(int32_t enabled);
 
+// With the GamePad off, nn_cmpt refuses vWii launches (-512): its switch of the
+// TV to Wii mode (AVMSetDCWiiCompat) also reprograms the GamePad's display pipe
+// from avm.rpl's GamePad settings, and with no GamePad those say "off" (what
+// GX2SetDRCBuffer with GX2_DRC_RENDER_MODE_DISABLE stores), which dc.rpl rejects
+// (DCGetBufferRequirement = -2). Give the GamePad pipe a normal 854x480 mode
+// first, with the call GX2SetDRCBuffer makes for GX2_DRC_RENDER_MODE_SINGLE and
+// double buffering: AVMSetDRCBufferAttr(bufferingMode, mode, pitch).
+static void setDrcModeForWiiMode() {
+    OSDynLoad_Module avm   = nullptr;
+    void *setDrcBufferAttr = nullptr;
+    if (OSDynLoad_Acquire("avm.rpl", &avm) != OS_DYNLOAD_OK ||
+        OSDynLoad_FindExport(avm, OS_DYNLOAD_EXPORT_FUNC, "AVMSetDRCBufferAttr", &setDrcBufferAttr) != OS_DYNLOAD_OK) {
+        DEBUG_FUNCTION_LINE_ERR("AVMSetDRCBufferAttr not found");
+        return;
+    }
+    [[maybe_unused]] int32_t result = ((int32_t(*)(int32_t, int32_t, int32_t)) setDrcBufferAttr)(2, 1, 896);
+    DEBUG_FUNCTION_LINE("AVMSetDRCBufferAttr(2, 1, 896) = %d", result);
+}
+
 static void launchvWiiTitle(uint64_t titleId) {
     // we need to init kpad for cmpt
     KPADInit();
@@ -110,6 +130,8 @@ static void launchvWiiTitle(uint64_t titleId) {
 
     uint32_t dataSize = 0;
     CMPTGetDataSize(&dataSize);
+
+    setDrcModeForWiiMode();
 
     void *dataBuffer = memalign(0x40, dataSize);
 
