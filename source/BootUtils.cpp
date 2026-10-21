@@ -93,7 +93,7 @@ void handleAccountSelection() {
 // calls this before launching vWii titles to signal GamePad support.
 extern "C" int32_t CMPTAcctSetDrcCtrlEnabled(int32_t enabled);
 
-// With the GamePad off, nn_cmpt refuses vWii launches (-512): its switch of the
+// With no GamePad connected, nn_cmpt refuses vWii launches (-512): its switch of the
 // TV to Wii mode (AVMSetDCWiiCompat) also reprograms the GamePad's display pipe
 // from avm.rpl's GamePad settings, and with no GamePad those say "off" (what
 // GX2SetDRCBuffer with GX2_DRC_RENDER_MODE_DISABLE stores), which dc.rpl rejects
