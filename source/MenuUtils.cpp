@@ -13,6 +13,7 @@
 #include <coreinit/filesystem_fsa.h>
 #include <coreinit/screen.h>
 #include <coreinit/thread.h>
+#include <coreinit/time.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -60,16 +61,19 @@ static int32_t builtInOptionNamed(const char *name) {
     return -1;
 }
 
-std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std::vector<uint32_t> &menuOrder) {
+std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std::vector<uint32_t> &menuOrder,
+                                                    uint32_t &countdownSeconds) {
     std::vector<CustomBootOption> result;
     menuOrder.clear();
-    FILE *f = fopen(path.c_str(), "r");
+    countdownSeconds = 0;
+    FILE *f          = fopen(path.c_str(), "r");
     if (!f) {
         return result;
     }
 
     // One entry per line: "Name,0x0001000152494654". The title id decides how it is launched.
-    // A line "@name" places a built-in entry ("@wiiu_menu") between them.
+    // A line "@name" places a built-in entry ("@wiiu_menu") between them, and a line
+    // "countdown=5" turns on the menu's countdown to the autoboot entry.
     std::vector<uint32_t> order;
     bool namesBuiltIns = false;
     bool tooMany       = false;
@@ -83,6 +87,19 @@ std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std
         firstLine = false;
         trimInPlace(line);
         if (line[0] == '\0' || line[0] == '#') {
+            continue;
+        }
+
+        if (strncasecmp(line, "countdown=", 10) == 0) {
+            char *valueStr = line + 10;
+            trimInPlace(valueStr);
+            char *valueEnd        = nullptr;
+            unsigned long seconds = strtoul(valueStr, &valueEnd, 10);
+            if (valueEnd == valueStr || *valueEnd != '\0' || seconds < 1 || seconds > MAX_MENU_COUNTDOWN_SECONDS) {
+                DEBUG_FUNCTION_LINE_WARN("bootOptions.cfg: \"%s\" is not a countdown of 1 to %d seconds", line, MAX_MENU_COUNTDOWN_SECONDS);
+                continue;
+            }
+            countdownSeconds = seconds;
             continue;
         }
 
@@ -204,7 +221,8 @@ void writeAutobootOption(std::string &configPath, int32_t autobootOption, const 
     }
 }
 
-void drawMenuScreen(const BootMenu &menu, uint32_t selectedIndex, uint32_t autobootIndex, bool updatesBlocked) {
+// `secondsLeft` > 0: the countdown to the autoboot entry is running, shown above the bottom bar.
+void drawMenuScreen(const BootMenu &menu, uint32_t selectedIndex, uint32_t autobootIndex, bool updatesBlocked, uint32_t secondsLeft) {
     DrawUtils::beginDraw();
     DrawUtils::clear(COLOR_BACKGROUND);
 
@@ -226,6 +244,15 @@ void drawMenuScreen(const BootMenu &menu, uint32_t selectedIndex, uint32_t autob
     }
 
     DrawUtils::setFontColor(COLOR_TEXT);
+
+    if (secondsLeft > 0 && autobootIndex < menu.size()) {
+        std::string countdown = string_format("Starting %s in %u... Press any button to stay in this menu.",
+                                              menu[autobootIndex].second.c_str(), (unsigned int) secondsLeft);
+        DrawUtils::setFontSize(20);
+        DrawUtils::setFontColor(COLOR_AUTOBOOT);
+        DrawUtils::print(16, SCREEN_HEIGHT - 24 - 8 - 4 - 24, countdown.c_str());
+        DrawUtils::setFontColor(COLOR_TEXT);
+    }
 
     // draw top bar
     DrawUtils::setFontSize(24);
@@ -254,7 +281,7 @@ void drawMenuScreen(const BootMenu &menu, uint32_t selectedIndex, uint32_t autob
 }
 
 int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const BootMenu &menu,
-                         const std::vector<CustomBootOption> &customOptions, bool ordered) {
+                         const std::vector<CustomBootOption> &customOptions, bool ordered, uint32_t countdownSeconds) {
     auto screenBuffer = DrawUtils::InitOSScreen();
     if (!screenBuffer) {
         OSFatal("AutobootModule: Failed to alloc memory for screen");
@@ -288,17 +315,36 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
     // a saved custom entry whose title isn't installed (the menu gets -1 for it).
     bool autobootChanged = false;
 
+    // The countdown runs only towards an autoboot entry the menu shows, and stops for good at the
+    // first button pressed (or when the pairing screen opens).
+    bool countingDown       = countdownSeconds > 0 && autobootIndex >= 0;
+    OSTime countdownStarted = OSGetTime();
+
     {
         PairMenu pairMenu;
 
         int32_t holdUpdateBlockedForFrames = 0;
         while (true) {
             if (pairMenu.ProcessPairScreen()) {
+                countingDown = false;
                 continue;
             }
 
 
             InputUtils::InputData input = InputUtils::getControllerInput();
+
+            uint32_t secondsLeft = 0;
+            if (countingDown && input.trigger != 0) {
+                countingDown = false;
+            }
+            if (countingDown) {
+                uint32_t elapsed = (uint32_t) OSTicksToSeconds(OSGetTime() - countdownStarted);
+                if (elapsed >= countdownSeconds) {
+                    selectedIndex = autobootIndex;
+                    break;
+                }
+                secondsLeft = countdownSeconds - elapsed;
+            }
 
             if (input.trigger & VPAD_BUTTON_UP) {
                 selectedIndex--;
@@ -336,7 +382,7 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
                 holdUpdateBlockedForFrames = 0;
             }
 
-            drawMenuScreen(menu, selectedIndex, autobootIndex, gUpdatesBlocked);
+            drawMenuScreen(menu, selectedIndex, autobootIndex, gUpdatesBlocked, secondsLeft);
         }
     }
 

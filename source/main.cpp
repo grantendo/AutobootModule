@@ -102,9 +102,10 @@ int32_t main(int32_t argc, char **argv) {
     }
 
     std::vector<uint32_t> menuOrder;
-    auto customOptions    = readCustomBootOptions(bootOptionsPath, menuOrder);
-    const bool ordered    = !menuOrder.empty();
-    int32_t bootSelection = readAutobootOption(configPath, customOptions);
+    uint32_t countdownSeconds = 0;
+    auto customOptions        = readCustomBootOptions(bootOptionsPath, menuOrder, countdownSeconds);
+    const bool ordered        = !menuOrder.empty();
+    int32_t bootSelection     = readAutobootOption(configPath, customOptions);
 
     // The usual order: the built-in entries, then the custom ones. Entries that bootOptions.cfg
     // orders with "@" lines come first; the ones it doesn't list follow in the usual order.
@@ -164,7 +165,9 @@ int32_t main(int32_t argc, char **argv) {
         return false;
     };
 
-    if ((bootSelection == -1) ||
+    // With a countdown set, the menu shows at every boot and counts down to the autoboot entry,
+    // so a console with no controller in reach still starts that entry by itself.
+    if ((bootSelection == -1) || (countdownSeconds > 0) ||
         (bootSelection == BOOT_OPTION_HOMEBREW_LAUNCHER && !showHBL) ||
         (bootSelection == BOOT_OPTION_VWII_HOMEBREW_CHANNEL && !showvHBL) ||
         (bootSelection >= BOOT_OPTION_CUSTOM_BASE && !inMenu(bootSelection)) ||
@@ -176,7 +179,7 @@ int32_t main(int32_t argc, char **argv) {
         // Launcher or vWii Homebrew Channel) stays saved and comes back once it's available again,
         // instead of being preselected or overwritten by the menu.
         int32_t menuInput = (bootSelection >= 0 && !inMenu(bootSelection)) ? -1 : bootSelection;
-        bootSelection     = handleMenuScreen(configPath, menuInput, menu, customOptions, ordered);
+        bootSelection     = handleMenuScreen(configPath, menuInput, menu, customOptions, ordered, countdownSeconds);
         hadMenu           = true;
     }
 

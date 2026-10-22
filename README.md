@@ -39,6 +39,10 @@ My vWii Channel,0x0001000152494654
 
 The names are the ones `autoboot.cfg` uses: `@wiiu_menu`, `@homebrew_launcher`, `@vwii_system_menu` and `@vwii_homebrew_channel`. Built-in entries without a line follow the listed ones in the usual order, so none can disappear by accident, and an entry that isn't available (the Homebrew Launcher without its installer, the vWii Homebrew Channel without HBC) is still left out. Without `@` lines the menu keeps the usual order. With `@` lines and no autoboot entry, the cursor starts on the first entry instead of the Wii U Menu.
 
+### Menu countdown
+
+A line `countdown=5` in `bootOptions.cfg` (1 to 30 seconds) shows the menu at every boot even when an autoboot entry is set, with "Starting <entry> in 5..." above the bottom bar. When the countdown ends, the autoboot entry starts; pressing any button first stops the countdown and leaves the menu open as usual. Without an autoboot entry there is nothing to count down to, and the menu waits as before. Useful when no GamePad or Wii Remote is in reach at boot.
+
 ## Buildflags
 
 ### Logging
