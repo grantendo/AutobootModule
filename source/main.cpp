@@ -159,7 +159,7 @@ int32_t main(int32_t argc, char **argv) {
     // Power off, always last, when it fits: the menu doesn't scroll, and seven rows reach the
     // countdown line.
     if (menu.size() < 7) {
-        menu.emplace_back(BOOT_OPTION_POWER_OFF, "Power off");
+        menu.emplace_back(BOOT_OPTION_POWER_OFF, "Power Off");
     }
     auto inMenu = [&menu](int32_t id) {
         for (auto &item : menu) {

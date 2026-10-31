@@ -27,11 +27,12 @@
 
 void handleAccountSelection();
 
-// TEST BUILD (fork): the boot menu's Power off entry. OSShutdown is asked here first: from a tile
-// app, which runs in Health & Safety's slot as this menu does, it never finished (31 Oct, four
-// ways); from inside the Wii U Menu it does. So if the console is still on 8 s later, the Wii U
-// Menu is started with sd:/wiiu/poweroff.flag in place, and poweroff_helper.wps powers off from
-// there. Each step goes to sd:/wiiu/autoboot_poweroff.log.
+// TEST BUILD (fork): the boot menu's Power off entry. OSShutdown asked here does go through, but
+// only once the boot menu hands over to the next title (31 Oct: still on 8 s after the call, off
+// once the Wii U Menu was started). So: a fresh sd:/wiiu/poweroff.flag (its time, for
+// poweroff_helper.wps, should the shutdown not come), OSShutdown, and the Wii U Menu at once.
+// The helper ignores a flag older than 2 minutes, so one left by a power-off that went through
+// here can't power off a later start. Each step goes to sd:/wiiu/autoboot_poweroff.log.
 static void logPowerOff(const char *line) {
     if (FILE *f = fopen("fs:/vol/external01/wiiu/autoboot_poweroff.log", "a")) {
         fprintf(f, "%llu ms: %s\n", (unsigned long long) OSTicksToMilliseconds(OSGetSystemTime()), line);
@@ -40,18 +41,14 @@ static void logPowerOff(const char *line) {
 }
 
 void powerOffFromMenu() {
-    logPowerOff("Power off picked: OSShutdown()");
-    char line[48];
-    snprintf(line, sizeof(line), "OSShutdown() returned %d", (int) OSShutdown());
-    logPowerOff(line);
-    for (int i = 0; i < 80; i++) {
-        OSSleepTicks(OSMillisecondsToTicks(100));
-    }
-    logPowerOff("still on after 8 s: the Wii U Menu with the flag, for poweroff_helper");
     if (FILE *f = fopen("fs:/vol/external01/wiiu/poweroff.flag", "w")) {
-        fputs("AutobootModule Power off\n", f);
+        fprintf(f, "%lld\n", (long long) OSGetTime());
         fclose(f);
     }
+    char line[64];
+    snprintf(line, sizeof(line), "Power Off picked: OSShutdown() returned %d", (int) OSShutdown());
+    logPowerOff(line);
+    logPowerOff("the Wii U Menu next");
     bootWiiUMenu();
 }
 
