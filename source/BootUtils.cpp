@@ -14,6 +14,7 @@
 #include <mocha/mocha.h>
 #include <nn/act.h>
 #include <nn/cmpt/cmpt.h>
+#include <nsysccr/cdc.h>
 #include <padscore/kpad.h>
 #include <sndcore2/core.h>
 #include <string>
@@ -112,15 +113,13 @@ static void setDrcModeForWiiMode() {
     DEBUG_FUNCTION_LINE("AVMSetDRCBufferAttr(2, 1, 896) = %d", result);
 }
 
-// Whether a GamePad is connected: VPADRead reports VPAD_READ_INVALID_CONTROLLER while none is.
+// Whether a GamePad is connected: it answers a ping over its radio link. Not VPADRead, which
+// a plugin can make succeed with no GamePad there (the DRC Read Result Spoofer does).
 // Asked for up to half a second, as a GamePad switched on with the console may still be
 // connecting when autoboot gets here.
 static bool isGamePadConnected() {
     for (int i = 0; i < 10; i++) {
-        VPADStatus status{};
-        VPADReadError error = VPAD_READ_UNINITIALIZED;
-        VPADRead(VPAD_CHAN_0, &status, 1, &error);
-        if (error == VPAD_READ_SUCCESS || error == VPAD_READ_NO_SAMPLES) {
+        if (CCRCDCDevicePing(CCR_CDC_DESTINATION_DRC0) == 0) {
             return true;
         }
         OSSleepTicks(OSMillisecondsToTicks(50));
