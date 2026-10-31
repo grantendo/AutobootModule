@@ -27,6 +27,8 @@ enum {
     BOOT_OPTION_HOMEBREW_LAUNCHER,
     BOOT_OPTION_VWII_SYSTEM_MENU,
     BOOT_OPTION_VWII_HOMEBREW_CHANNEL,
+    // Always the last entry, never an autoboot choice (not in autoboot.cfg's names).
+    BOOT_OPTION_POWER_OFF,
 };
 
 // Entries from bootOptions.cfg use BOOT_OPTION_CUSTOM_BASE + their index in the file.

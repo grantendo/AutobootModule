@@ -10,6 +10,9 @@ void bootvWiiMenu();
 
 void bootHomebrewChannel();
 
+// TEST BUILD (fork): the boot menu's Power off entry.
+void powerOffFromMenu();
+
 uint64_t getVWiiHBLTitleId();
 
 // vWii titles start with 0x0001, Wii U titles with 0x0005.

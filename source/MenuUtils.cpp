@@ -370,8 +370,11 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
                 autobootIndex   = -1;
                 autobootChanged = true;
             } else if (input.trigger & (VPAD_BUTTON_Y | VPAD_BUTTON_PLUS)) {
-                autobootIndex   = selectedIndex;
-                autobootChanged = true;
+                // Power off can't be the autoboot entry: every start would end in a power-off.
+                if (menu[selectedIndex].first != BOOT_OPTION_POWER_OFF) {
+                    autobootIndex   = selectedIndex;
+                    autobootChanged = true;
+                }
             } else if ((input.hold & (VPAD_BUTTON_PLUS | VPAD_BUTTON_MINUS)) == (VPAD_BUTTON_PLUS | VPAD_BUTTON_MINUS)) {
                 if (holdUpdateBlockedForFrames++ > 50) {
                     if (gUpdatesBlocked) {

@@ -5,6 +5,7 @@
 #include <codecvt>
 #include <coreinit/dynload.h>
 #include <coreinit/filesystem_fsa.h>
+#include <coreinit/launch.h>
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
 #include <cstdio>
@@ -25,6 +26,34 @@
 #include <vpad/input.h>
 
 void handleAccountSelection();
+
+// TEST BUILD (fork): the boot menu's Power off entry. OSShutdown is asked here first: from a tile
+// app, which runs in Health & Safety's slot as this menu does, it never finished (31 Oct, four
+// ways); from inside the Wii U Menu it does. So if the console is still on 8 s later, the Wii U
+// Menu is started with sd:/wiiu/poweroff.flag in place, and poweroff_helper.wps powers off from
+// there. Each step goes to sd:/wiiu/autoboot_poweroff.log.
+static void logPowerOff(const char *line) {
+    if (FILE *f = fopen("fs:/vol/external01/wiiu/autoboot_poweroff.log", "a")) {
+        fprintf(f, "%llu ms: %s\n", (unsigned long long) OSTicksToMilliseconds(OSGetSystemTime()), line);
+        fclose(f);
+    }
+}
+
+void powerOffFromMenu() {
+    logPowerOff("Power off picked: OSShutdown()");
+    char line[48];
+    snprintf(line, sizeof(line), "OSShutdown() returned %d", (int) OSShutdown());
+    logPowerOff(line);
+    for (int i = 0; i < 80; i++) {
+        OSSleepTicks(OSMillisecondsToTicks(100));
+    }
+    logPowerOff("still on after 8 s: the Wii U Menu with the flag, for poweroff_helper");
+    if (FILE *f = fopen("fs:/vol/external01/wiiu/poweroff.flag", "w")) {
+        fputs("AutobootModule Power off\n", f);
+        fclose(f);
+    }
+    bootWiiUMenu();
+}
 
 void bootWiiUMenu() {
     nn::act::Initialize();
