@@ -31,8 +31,8 @@ void handleAccountSelection();
 // only once the boot menu hands over to the next title (31 Oct: still on 8 s after the call, off
 // once the Wii U Menu was started). So: a fresh sd:/wiiu/poweroff.flag (its time, for
 // poweroff_helper.wps, should the shutdown not come), OSShutdown, and the Wii U Menu at once.
-// The helper ignores a flag older than 2 minutes, so one left by a power-off that went through
-// here can't power off a later start. Each step goes to sd:/wiiu/autoboot_poweroff.log.
+// The flag holds the clock and the time since power-on: the helper takes only one written in the
+// same power-on, so one left by a power-off that went through here can't power off a later start. Each step goes to sd:/wiiu/autoboot_poweroff.log.
 static void logPowerOff(const char *line) {
     if (FILE *f = fopen("fs:/vol/external01/wiiu/autoboot_poweroff.log", "a")) {
         fprintf(f, "%llu ms: %s\n", (unsigned long long) OSTicksToMilliseconds(OSGetSystemTime()), line);
@@ -42,7 +42,7 @@ static void logPowerOff(const char *line) {
 
 void powerOffFromMenu() {
     if (FILE *f = fopen("fs:/vol/external01/wiiu/poweroff.flag", "w")) {
-        fprintf(f, "%lld\n", (long long) OSGetTime());
+        fprintf(f, "%lld %lld\n", (long long) OSGetTime(), (long long) OSGetSystemTime());
         fclose(f);
     }
     char line[64];
