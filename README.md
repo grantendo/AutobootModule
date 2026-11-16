@@ -1,5 +1,22 @@
-[![CI-Release](https://github.com/wiiu-env/AutobootModule/actions/workflows/ci.yml/badge.svg)](https://github.com/wiiu-env/AutobootModule/actions/workflows/ci.yml)
-# AutobootModule
+# AutobootModule (grantendo fork)
+
+> **This is not an official Aroma build.** It's a fork of [wiiu-env/AutobootModule](https://github.com/wiiu-env/AutobootModule) v0.3.2 with four changes that are offered upstream but not merged yet. The menu shows "v0.3.2 (grantendo fork)" in its top-right corner. Problems with this build belong here, not in wiiu-env's issues.
+
+What it adds:
+- **vWii titles start with no GamePad connected** (wiiu-env/AutobootModule#67). Based on [@patapovich](https://github.com/patapovich)'s wiiu-env/AutobootModule#69 (his commits keep his name), plus a GamePad check over its radio link and a GamePad pipe fix that let the launch go through.
+- **Custom boot entries** from `bootOptions.cfg`, following [@razor85](https://github.com/razor85)'s wiiu-env/AutobootModule#25.
+- **Menu order** from `bootOptions.cfg`.
+- **Menu countdown** to the autoboot entry.
+
+Details for each are below.
+
+**Install:** replace `wiiu/environments/aroma/modules/setup/99_autoboot.rpx` on the SD card with the one from the release. Keep that file name.
+
+**When you update Aroma:** the Aroma Updater sees an unknown `99_autoboot.rpx` and asks whether to overwrite it. Press **B** to keep this one. Pressing **A** puts the official module back (that's also how to undo this fork).
+
+---
+
+## About the original
 This is a bootmenu targetted to be loaded with the [EnvironmentLoader](https://github.com/wiiu-env/EnvironmentLoader). It allows you to boot into the Wii U Menu, Homebrew Channel, vWii System Menu or vWii Homebrew Channel.
 
 ## Usage
@@ -80,3 +97,6 @@ docker run -it --rm -v ${PWD}:/project autobootmodule-builder make clean
 - GaryOderNichts
 - Maschell
 - Crementif
+- patapovich (no-GamePad vWii launch, wiiu-env/AutobootModule#69)
+- razor85 (custom boot entries, wiiu-env/AutobootModule#25)
+- grantendo (this fork)
