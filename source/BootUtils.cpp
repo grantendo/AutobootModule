@@ -3,7 +3,11 @@
 #include "MenuUtils.h"
 #include "logger.h"
 #include <codecvt>
+#include <coreinit/dynload.h>
 #include <coreinit/filesystem_fsa.h>
+#include <coreinit/thread.h>
+#include <coreinit/time.h>
+#include <cstdio>
 #include <filesystem>
 #include <locale>
 #include <malloc.h>
@@ -11,12 +15,14 @@
 #include <mocha/mocha.h>
 #include <nn/act.h>
 #include <nn/cmpt/cmpt.h>
+#include <nsysccr/cdc.h>
 #include <padscore/kpad.h>
 #include <sndcore2/core.h>
 #include <string>
 #include <sysapp/launch.h>
 #include <sysapp/title.h>
 #include <vector>
+#include <vpad/input.h>
 
 void handleAccountSelection();
 
@@ -85,21 +91,80 @@ void handleAccountSelection() {
     nn::act::Finalize();
 }
 
+// Exported by nn_cmpt.rpl but not declared in wut's cmpt.h; the Wii U Menu
+// calls this before launching vWii titles to signal GamePad support.
+extern "C" int32_t CMPTAcctSetDrcCtrlEnabled(int32_t enabled);
+
+// With no GamePad connected, nn_cmpt refuses vWii launches (-512): its switch of the
+// TV to Wii mode (AVMSetDCWiiCompat) also reprograms the GamePad's display pipe
+// from avm.rpl's GamePad settings, and with no GamePad those say "off" (what
+// GX2SetDRCBuffer with GX2_DRC_RENDER_MODE_DISABLE stores), which dc.rpl rejects
+// (DCGetBufferRequirement = -2). Give the GamePad pipe a normal 854x480 mode
+// first, with the call GX2SetDRCBuffer makes for GX2_DRC_RENDER_MODE_SINGLE and
+// double buffering: AVMSetDRCBufferAttr(bufferingMode, mode, pitch).
+static void setDrcModeForWiiMode() {
+    OSDynLoad_Module avm   = nullptr;
+    void *setDrcBufferAttr = nullptr;
+    if (OSDynLoad_Acquire("avm.rpl", &avm) != OS_DYNLOAD_OK ||
+        OSDynLoad_FindExport(avm, OS_DYNLOAD_EXPORT_FUNC, "AVMSetDRCBufferAttr", &setDrcBufferAttr) != OS_DYNLOAD_OK) {
+        DEBUG_FUNCTION_LINE_ERR("AVMSetDRCBufferAttr not found");
+        return;
+    }
+    [[maybe_unused]] int32_t result = ((int32_t(*)(int32_t, int32_t, int32_t)) setDrcBufferAttr)(2, 1, 896);
+    DEBUG_FUNCTION_LINE("AVMSetDRCBufferAttr(2, 1, 896) = %d", result);
+}
+
+// Whether a GamePad is connected: it answers a ping over its radio link. Not VPADRead, which
+// a plugin can make succeed with no GamePad there (the DRC Read Result Spoofer does).
+// Asked for up to half a second, as a GamePad switched on with the console may still be
+// connecting when autoboot gets here.
+static bool isGamePadConnected() {
+    for (int i = 0; i < 10; i++) {
+        if (CCRCDCDevicePing(CCR_CDC_DESTINATION_DRC0) == 0) {
+            return true;
+        }
+        OSSleepTicks(OSMillisecondsToTicks(50));
+    }
+    return false;
+}
+
 static void launchvWiiTitle(uint64_t titleId) {
     // we need to init kpad for cmpt
     KPADInit();
 
-    // Try to find a screen type that works
-    CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_BOTH);
-    if (CMPTCheckScreenState() < 0) {
-        CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_DRC);
+    // With a GamePad connected, launch as before: the vWii can show on both screens. Without
+    // one, the launch hangs on a black screen or is refused, see
+    // https://github.com/wiiu-env/AutobootModule/issues/67, so launch for the TV alone.
+    const bool gamePadConnected = isGamePadConnected();
+    if (gamePadConnected) {
+        // Try to find a screen type that works
+        CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_BOTH);
         if (CMPTCheckScreenState() < 0) {
-            CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+            CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_DRC);
+            if (CMPTCheckScreenState() < 0) {
+                CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+            }
+        }
+    } else {
+        DEBUG_FUNCTION_LINE("No GamePad connected: launching the vWii for the TV only");
+        // GamePad control off and the TV as the only screen
+        CMPTAcctSetDrcCtrlEnabled(0);
+        CMPTAcctSetScreenType(CMPT_SCREEN_TYPE_TV);
+
+        // On autoboot this code runs much earlier than a manual selection from
+        // the boot menu, and launching before the compat subsystem is ready
+        // results in a black screen. Wait for it, but launch anyway after 5s.
+        for (int i = 0; i < 50 && CMPTCheckScreenState() < 0; i++) {
+            OSSleepTicks(OSMillisecondsToTicks(100));
         }
     }
 
     uint32_t dataSize = 0;
     CMPTGetDataSize(&dataSize);
+
+    if (!gamePadConnected) {
+        setDrcModeForWiiMode();
+    }
 
     void *dataBuffer = memalign(0x40, dataSize);
 
@@ -116,9 +181,16 @@ void bootvWiiMenu() {
     launchvWiiTitle(0);
 }
 
-uint64_t getVWiiHBLTitleId() {
-    // fall back to booting the vWii system menu if anything fails
-    uint64_t titleId = 0;
+bool isVWiiTitle(uint64_t titleId) {
+    return (titleId >> 48) == 0x0001;
+}
+
+bool isWiiUTitle(uint64_t titleId) {
+    return (titleId >> 48) == 0x0005;
+}
+
+bool vWiiTitleExists(uint64_t titleId) {
+    bool exists = false;
 
     FSAInit();
     auto client = FSAAddClient(nullptr);
@@ -126,16 +198,12 @@ uint64_t getVWiiHBLTitleId() {
         if (Mocha_UnlockFSClientEx(client) == MOCHA_RESULT_SUCCESS) {
             // mount the slccmpt
             if (FSAMount(client, "/dev/slccmpt01", "/vol/storage_abm_slccmpt01", FSA_MOUNT_FLAG_GLOBAL_MOUNT, nullptr, 0) >= 0) {
+                // every installed title has a TMD; content file names depend on the title
+                char path[0x80];
+                snprintf(path, sizeof(path), "/vol/storage_abm_slccmpt01/title/%08x/%08x/content/title.tmd",
+                         (uint32_t) (titleId >> 32), (uint32_t) titleId);
                 FSStat stat;
-
-                // test if the OHBC or HBC is installed
-                if (FSAGetStat(client, "/vol/storage_abm_slccmpt01/title/00010001/4f484243/content/00000000.app", &stat) >= 0) {
-                    titleId = 0x000100014F484243L; // 'OHBC'
-                } else if (FSAGetStat(client, "/vol/storage_abm_slccmpt01/title/00010001/4c554c5a/content/00000000.app", &stat) >= 0) {
-                    titleId = 0x000100014C554C5AL; // 'LULZ'
-                } else {
-                    DEBUG_FUNCTION_LINE("Cannot find HBC");
-                }
+                exists = FSAGetStat(client, path, &stat) >= 0;
                 FSAUnmount(client, "/vol/storage_abm_slccmpt01", FSA_UNMOUNT_FLAG_FORCE);
             } else {
                 DEBUG_FUNCTION_LINE_ERR("Failed to mount slccmpt01");
@@ -147,11 +215,44 @@ uint64_t getVWiiHBLTitleId() {
     } else {
         DEBUG_FUNCTION_LINE_ERR("Failed to add FSAClient");
     }
-    return titleId;
+    return exists;
+}
+
+bool titleExists(uint64_t titleId) {
+    if (isVWiiTitle(titleId)) {
+        return vWiiTitleExists(titleId);
+    }
+    if (isWiiUTitle(titleId)) {
+        return SYSCheckTitleExists(titleId);
+    }
+    return false;
+}
+
+uint64_t getVWiiHBLTitleId() {
+    // test if the OHBC or HBC is installed, fall back to booting the vWii system menu if anything fails
+    if (vWiiTitleExists(0x000100014F484243L)) {
+        return 0x000100014F484243L; // 'OHBC'
+    }
+    if (vWiiTitleExists(0x000100014C554C5AL)) {
+        return 0x000100014C554C5AL; // 'LULZ'
+    }
+    DEBUG_FUNCTION_LINE("Cannot find HBC");
+    return 0;
 }
 
 void bootHomebrewChannel() {
     uint64_t titleId = getVWiiHBLTitleId();
     DEBUG_FUNCTION_LINE("Launching vWii title %016llx", titleId);
     launchvWiiTitle(titleId);
+}
+
+void bootCustomTitle(uint64_t titleId) {
+    if (isVWiiTitle(titleId)) {
+        DEBUG_FUNCTION_LINE("Launching vWii title %016llx", titleId);
+        launchvWiiTitle(titleId);
+    } else {
+        handleAccountSelection();
+        DEBUG_FUNCTION_LINE("Launching Wii U title %016llx", titleId);
+        _SYSLaunchTitleWithStdArgsInNoSplash(titleId, nullptr);
+    }
 }
