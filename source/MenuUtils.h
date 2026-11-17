@@ -44,10 +44,16 @@ struct CustomBootOption {
     uint64_t titleId;
 };
 
+// The longest countdown a "countdown=" line may ask for, in seconds.
+#define MAX_MENU_COUNTDOWN_SECONDS 30
+
 // Reads the custom entries from bootOptions.cfg. When the file also has "@" lines naming
 // built-in entries, `menuOrder` gets every listed entry's option id in the file's order;
-// without them it stays empty and the menu keeps the usual order.
-std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std::vector<uint32_t> &menuOrder);
+// without them it stays empty and the menu keeps the usual order. A line "countdown=5" sets
+// `countdownSeconds` (0 without one): the menu then shows at every boot even with an autoboot
+// entry, and starts that entry when the countdown ends unless a button is pressed.
+std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std::vector<uint32_t> &menuOrder,
+                                                    uint32_t &countdownSeconds);
 
 int32_t readAutobootOption(std::string &configPath, const std::vector<CustomBootOption> &customOptions);
 
@@ -55,8 +61,10 @@ void writeAutobootOption(std::string &configPath, int32_t autobootOption, const 
 
 // `ordered`: bootOptions.cfg sets the menu order; with no autoboot entry the cursor then
 // starts on the first entry instead of the Wii U Menu.
+// `countdownSeconds` > 0 with an autoboot entry in the menu: that entry starts by itself
+// when the countdown ends, unless a button was pressed first.
 int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, const BootMenu &menu,
-                         const std::vector<CustomBootOption> &customOptions, bool ordered);
+                         const std::vector<CustomBootOption> &customOptions, bool ordered, uint32_t countdownSeconds);
 
 nn::act::SlotNo handleAccountSelectScreen(const std::vector<std::shared_ptr<AccountInfo>> &data);
 
