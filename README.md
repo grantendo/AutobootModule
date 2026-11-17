@@ -1,12 +1,12 @@
 # AutobootModule (grantendo fork)
 
-> **This is not an official Aroma build.** It's a fork of [wiiu-env/AutobootModule](https://github.com/wiiu-env/AutobootModule) v0.3.2 with four changes that are offered upstream but not merged yet. The menu shows "v0.3.2 (grantendo fork)" in its top-right corner. Problems with this build belong here, not in wiiu-env's issues.
+> **This is not an official Aroma build.** It's a fork of [wiiu-env/AutobootModule](https://github.com/wiiu-env/AutobootModule) v0.3.2 with four changes that aren't in the official build yet. The menu shows "v0.3.2 (grantendo fork)" in its top-right corner. Problems with this build belong here, not in wiiu-env's issues.
 
 What it adds:
-- **vWii titles start with no GamePad connected** (wiiu-env/AutobootModule#67). Based on [@patapovich](https://github.com/patapovich)'s wiiu-env/AutobootModule#69 (his commits keep his name), plus a GamePad check over its radio link and a GamePad pipe fix that let the launch go through.
-- **Custom boot entries** from `bootOptions.cfg`, following [@razor85](https://github.com/razor85)'s wiiu-env/AutobootModule#25.
-- **Menu order** from `bootOptions.cfg`.
-- **Menu countdown** to the autoboot entry.
+- **vWii titles start with no GamePad connected** (wiiu-env/AutobootModule#67), opened upstream as wiiu-env/AutobootModule#70. Based on [@patapovich](https://github.com/patapovich)'s wiiu-env/AutobootModule#69 (his commits keep his name), plus a GamePad check over its radio link and a GamePad pipe fix that let the launch go through.
+- **Custom boot entries** from `bootOptions.cfg`, opened upstream as wiiu-env/AutobootModule#71, following [@razor85](https://github.com/razor85)'s wiiu-env/AutobootModule#25.
+- **Menu order** from `bootOptions.cfg`, opened upstream as wiiu-env/AutobootModule#72.
+- **Menu countdown** to the autoboot entry, to be offered upstream after the menu order.
 
 Details for each are below.
 
