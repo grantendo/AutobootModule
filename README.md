@@ -41,7 +41,7 @@ The names are the ones `autoboot.cfg` uses: `@wiiu_menu`, `@homebrew_launcher`, 
 
 ### Menu countdown
 
-A line `countdown=5` in `bootOptions.cfg` (1 to 30 seconds) shows the menu at every boot even when an autoboot entry is set, with "Starting <entry> in 5..." above the bottom bar. When the countdown ends, the autoboot entry starts; pressing any button first stops the countdown and leaves the menu open as usual. Without an autoboot entry there is nothing to count down to, and the menu waits as before. Useful when no GamePad or Wii Remote is in reach at boot.
+A line `countdown=5` in `bootOptions.cfg` (1 to 30 seconds) shows the menu at every boot even when an autoboot entry is set, with "Starting <entry> in 5..." above the bottom bar. When the countdown ends, the autoboot entry starts; pressing any button first stops the countdown and leaves the menu open as usual. Holding START (+) at boot opens the menu without a countdown. Without an autoboot entry there is nothing to count down to, and the menu waits as before. Useful when no GamePad or Wii Remote is in reach at boot.
 
 ## Buildflags
 
