@@ -90,7 +90,8 @@ std::vector<CustomBootOption> readCustomBootOptions(const std::string &path, std
             continue;
         }
 
-        if (strncasecmp(line, "countdown=", 10) == 0) {
+        // A line with a comma is a custom entry, even if its name starts with "countdown=".
+        if (strncasecmp(line, "countdown=", 10) == 0 && !strchr(line, ',')) {
             char *valueStr = line + 10;
             trimInPlace(valueStr);
             char *valueEnd        = nullptr;
@@ -334,8 +335,10 @@ int32_t handleMenuScreen(std::string &configPath, int32_t autobootOptionInput, c
             InputUtils::InputData input = InputUtils::getControllerInput();
 
             uint32_t secondsLeft = 0;
+            // The first button only stops the countdown; it isn't also a menu action.
             if (countingDown && input.trigger != 0) {
-                countingDown = false;
+                countingDown  = false;
+                input.trigger = 0;
             }
             if (countingDown) {
                 uint32_t elapsed = (uint32_t) OSTicksToSeconds(OSGetTime() - countdownStarted);
