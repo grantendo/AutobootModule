@@ -179,8 +179,10 @@ int32_t main(int32_t argc, char **argv) {
         // Launcher or vWii Homebrew Channel) stays saved and comes back once it's available again,
         // instead of being preselected or overwritten by the menu.
         int32_t menuInput = (bootSelection >= 0 && !inMenu(bootSelection)) ? -1 : bootSelection;
-        bootSelection     = handleMenuScreen(configPath, menuInput, menu, customOptions, ordered, countdownSeconds);
-        hadMenu           = true;
+        // Holding START (+) at boot asks for the menu, so there's no countdown then.
+        uint32_t countdown = (buttons.hold & VPAD_BUTTON_PLUS) ? 0 : countdownSeconds;
+        bootSelection      = handleMenuScreen(configPath, menuInput, menu, customOptions, ordered, countdown);
+        hadMenu            = true;
     }
 
     if (bootSelection >= 0) {
