@@ -185,9 +185,11 @@ int32_t main(int32_t argc, char **argv) {
         // instead of being preselected or overwritten by the menu.
         int32_t menuInput = (bootSelection >= 0 && !inMenu(bootSelection)) ? -1 : bootSelection;
         // Holding START (+) at boot asks for the menu, so there's no countdown then. The buttons
-        // are read again too, as START may have been held while the update warning was open.
-        bool startHeld     = ((buttons.hold | InputUtils::getControllerInput().hold) & VPAD_BUTTON_PLUS) != 0;
-        uint32_t countdown = startHeld ? 0 : countdownSeconds;
+        // are read again too, as START may have been held while the update warning was open, and a
+        // button pressed in that read stops the countdown, as any first press in the menu does.
+        auto input         = InputUtils::getControllerInput();
+        bool startHeld     = ((buttons.hold | input.hold) & VPAD_BUTTON_PLUS) != 0;
+        uint32_t countdown = (startHeld || input.trigger) ? 0 : countdownSeconds;
         bootSelection      = handleMenuScreen(configPath, menuInput, menu, customOptions, ordered, countdown);
         hadMenu            = true;
     }
